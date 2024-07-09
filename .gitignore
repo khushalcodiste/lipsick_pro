@@ -18,3 +18,7 @@ models/shape_predictor_68_face_landmarks.dat
 asserts/output_graph.pb
 asserts/pretrained_lipsick.pth
 __pycache__/
+experiments/pretrained_models/GFPGANv1.4.pth
+gfpgan/weights/detection_Resnet50_Final.pth
+gfpgan/weights/parsing_parsenet.pth
+test.py

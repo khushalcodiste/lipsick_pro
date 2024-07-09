@@ -15,6 +15,16 @@ import dlib
 import shutil
 import warnings
 import tensorflow as tf
+import argparse
+import cv2
+import glob
+import numpy as np
+import os
+import torch
+from basicsr.utils import imwrite
+
+from gfpgan import GFPGANer
+
 
 warnings.filterwarnings("ignore", category=UserWarning, message="Default grid_sample and affine_grid behavior has changed*")
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '1'
@@ -24,12 +34,29 @@ from utils.data_processing import compute_crop_radius
 from config.config import LipSickInferenceOptions
 from models.LipSick import LipSick  # Import the LipSick model
 
+
+#lipsick
+
 face_detector = dlib.get_frontal_face_detector()
 landmark_predictor = dlib.shape_predictor("./models/shape_predictor_68_face_landmarks.dat")
 deepspeech_model_path = './asserts/output_graph.pb'
 pretrained_lipsick_path = './asserts/pretrained_lipsick.pth'
 auto_mask = True
 DSModel = DeepSpeech(deepspeech_model_path)
+
+#GFPGANv1.4
+GFPGAN_arch = 'clean'
+GFPGAN_channel_multiplier = 2
+GFPGAN_model_name = 'GFPGANv1.4'
+GFPGAN_url = 'https://github.com/TencentARC/GFPGAN/releases/download/v1.3.0/GFPGANv1.4.pth'
+GFPGAN_model_path = os.path.join('experiments/pretrained_models', GFPGAN_model_name + '.pth')
+restorer = GFPGANer(
+        model_path=GFPGAN_model_path,
+        upscale=2,
+        arch=GFPGAN_arch,
+        channel_multiplier=GFPGAN_channel_multiplier,
+        bg_upsampler=None)
+
 
 
 model = LipSick(source_channel=3, ref_channel=15, audio_channel=29).to('cuda')
@@ -62,15 +89,42 @@ def convert_audio_to_wav(audio_path):
         subprocess.run(command, shell=True, check=True)
     return output_path
 
+def restore_face(img_path,output):
+    # read image
+    img_name = os.path.basename(img_path)
+    print(f'Processing {img_name} ...')
+    basename, ext = os.path.splitext(img_name)
+    input_img = cv2.imread(img_path, cv2.IMREAD_COLOR)
+
+    # restore faces and background if necessary
+    cropped_faces, restored_faces, restored_img = restorer.enhance(
+        input_img,
+        has_aligned=True,
+        only_center_face=True,
+        paste_back=True,
+        weight=0.5)
+    # save restored img
+    if restored_img is not None:
+        extension = ext[1:]
+        save_restore_path = os.path.join(output, f'{basename}.{extension}')
+        cv2.imwrite(restored_img, save_restore_path)
+
+
+
 def extract_frames_from_video(video_path, save_dir):
     video_capture = cv2.VideoCapture(video_path)
     frames = int(video_capture.get(cv2.CAP_PROP_FRAME_COUNT))
+    old_frame = []
     for i in range(frames):
         ret, frame = video_capture.read()
         if not ret:
             break
         result_path = os.path.join(save_dir, str(i).zfill(6) + '.jpg')
+        old_frame.append(result_path)
         cv2.imwrite(result_path, frame)
+    for perFrame in old_frame:
+        restore_face(perFrame)
+    print("Face Restored")
     return (int(video_capture.get(cv2.CAP_PROP_FRAME_WIDTH)), int(video_capture.get(cv2.CAP_PROP_FRAME_HEIGHT)))
 
 def load_landmark_dlib(image_path):
