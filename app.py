@@ -2,6 +2,7 @@
 # from fastapi.responses import FileResponse
 import shutil
 import os
+from basicsr.utils.download_util import save_response_content
 import numpy as np
 import glob
 import sys
@@ -22,6 +23,7 @@ import numpy as np
 import os
 import torch
 from basicsr.utils import imwrite
+from tqdm import tqdm
 
 from gfpgan import GFPGANer
 
@@ -89,10 +91,9 @@ def convert_audio_to_wav(audio_path):
         subprocess.run(command, shell=True, check=True)
     return output_path
 
-def restore_face(img_path,output):
+def restore_face(img_path):
     # read image
     img_name = os.path.basename(img_path)
-    print(f'Processing {img_name} ...')
     basename, ext = os.path.splitext(img_name)
     input_img = cv2.imread(img_path, cv2.IMREAD_COLOR)
 
@@ -106,7 +107,8 @@ def restore_face(img_path,output):
     # save restored img
     if restored_img is not None:
         extension = ext[1:]
-        save_restore_path = os.path.join(output, f'{basename}.{extension}')
+        # save_restore_path = os.path.join(output, f'{basename}.{extension}')
+        save_restore_path = img_path
         cv2.imwrite(restored_img, save_restore_path)
 
 
@@ -122,7 +124,7 @@ def extract_frames_from_video(video_path, save_dir):
         result_path = os.path.join(save_dir, str(i).zfill(6) + '.jpg')
         old_frame.append(result_path)
         cv2.imwrite(result_path, frame)
-    for perFrame in old_frame:
+    for perFrame in tqdm(old_frame, desc="Processing frames"):
         restore_face(perFrame)
     print("Face Restored")
     return (int(video_capture.get(cv2.CAP_PROP_FRAME_WIDTH)), int(video_capture.get(cv2.CAP_PROP_FRAME_HEIGHT)))
@@ -146,7 +148,7 @@ def parse_reference_indices(indices_str):
         print("Error parsing reference indices.")
     return []
 
-def main_process(driving_audio_path,source_video_path,mouth_region_size,custom_crop_radius,res_video_dir):
+def main_process(source_video_path,driving_audio_path,mouth_region_size,custom_crop_radius,res_video_dir):
     # opt = LipSickInferenceOptions().parse_args()
     driving_audio_path = convert_audio_to_wav(driving_audio_path)
 
@@ -327,6 +329,6 @@ def main_process(driving_audio_path,source_video_path,mouth_region_size,custom_c
 
 #     return FileResponse(output_path, media_type='video/mp4', filename="processed_video.mp4")
 video_path = "Nishant_org.mp4"
-audio_path = "A1.mp3"
+audio_path = "A1.wav"
 output_path = "inference_result"
 main_process(video_path,audio_path,256,0,output_path)
