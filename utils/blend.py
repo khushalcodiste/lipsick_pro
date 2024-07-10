@@ -7,7 +7,8 @@ import glob
 import dlib
 import subprocess
 import shutil
-
+from tqdm import tqdm
+from gfpgan import GFPGANer
 # Add the parent directory to the Python path explicitly
 parent_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 sys.path.append(parent_dir)
@@ -15,10 +16,39 @@ sys.path.append(parent_dir)
 # Now import from the utils module
 from utils.common import get_versioned_filename
 
+GFPGAN_arch = 'clean'
+GFPGAN_channel_multiplier = 2
+GFPGAN_model_name = 'GFPGANv1.4'
+GFPGAN_url = 'https://github.com/TencentARC/GFPGAN/releases/download/v1.3.0/GFPGANv1.4.pth'
+GFPGAN_model_path = os.path.join('experiments/pretrained_models', GFPGAN_model_name + '.pth')
+restorer = GFPGANer(
+        model_path=GFPGAN_model_path,
+        upscale=2,
+        arch=GFPGAN_arch,
+        channel_multiplier=GFPGAN_channel_multiplier,
+        bg_upsampler=None)
+
 face_detector = dlib.get_frontal_face_detector()
 landmark_predictor = dlib.shape_predictor("./models/shape_predictor_68_face_landmarks.dat")
 
-def main(samelength_path, pre_blend_path):
+
+def restore_face(img_path):
+    # read image
+    # print(img_path)
+    input_img = cv2.imread(img_path, cv2.IMREAD_COLOR)
+
+    # restore faces and background if necessary
+    cropped_faces, restored_faces, restored_img = restorer.enhance(
+        input_img,
+        has_aligned=True,
+        only_center_face=True,
+        paste_back=True,
+        weight=0.5)
+    # save restored img
+    if restored_img is not None:
+        cv2.imwrite(img_path,restored_img)
+
+def Processmain(samelength_path, pre_blend_path):
     # Extract frames from the samelength video
     print('Extracting frames from samelength video')
     same_length_dir = os.path.join(os.path.dirname(samelength_path), 'samelength')
@@ -41,12 +71,16 @@ def main(samelength_path, pre_blend_path):
 def extract_frames_from_video(video_path, save_dir):
     videoCapture = cv2.VideoCapture(video_path)
     frames = int(videoCapture.get(cv2.CAP_PROP_FRAME_COUNT))
+    old_frame = []
     for i in range(frames):
         ret, frame = videoCapture.read()
         if not ret:
             break
         result_path = os.path.join(save_dir, str(i).zfill(6) + '.jpg')
+        old_frame.append(result_path)
         cv2.imwrite(result_path, frame)
+    for perFrame in tqdm(old_frame, desc="Processing frames for Alpha"):
+        restore_face(perFrame)
     return (int(videoCapture.get(cv2.CAP_PROP_FRAME_WIDTH)), int(videoCapture.get(cv2.CAP_PROP_FRAME_HEIGHT)))
 
 def load_landmark_dlib(image_path):
@@ -122,10 +156,10 @@ def blend_videos(same_length_dir, pre_blend_dir, samelength_path, pre_blend_path
     shutil.rmtree(same_length_dir)
     shutil.rmtree(pre_blend_dir)
 
-if __name__ == '__main__':
-    parser = argparse.ArgumentParser(description='Alpha blend two videos based on facial landmarks')
-    parser.add_argument('--samelength_video_path', type=str, required=True, help='Path to the samelength.mp4 video')
-    parser.add_argument('--pre_blend_video_path', type=str, required=True, help='Path to the pre_blend.mp4 video')
-    args = parser.parse_args()
+# if __name__ == '__main__':
+#     parser = argparse.ArgumentParser(description='Alpha blend two videos based on facial landmarks')
+#     parser.add_argument('--samelength_video_path', type=str, required=True, help='Path to the samelength.mp4 video')
+#     parser.add_argument('--pre_blend_video_path', type=str, required=True, help='Path to the pre_blend.mp4 video')
+#     args = parser.parse_args()
 
-    main(args.samelength_video_path, args.pre_blend_video_path)
+#     main(args.samelength_video_path, args.pre_blend_video_path)

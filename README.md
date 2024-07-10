@@ -4,7 +4,7 @@
 
 ## Clone the repository:
 ```bash
-git clone https://github.com/Inferencer/LipSick.git
+git clone https://github.com/khushalcodiste/lipsick_pro.git
 cd LipSick
 ```
 ## Create and activate the Anaconda environment:

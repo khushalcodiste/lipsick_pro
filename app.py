@@ -24,8 +24,8 @@ import os
 import torch
 from basicsr.utils import imwrite
 from tqdm import tqdm
-
-from gfpgan import GFPGANer
+from utils.blend import Processmain
+# from gfpgan import GFPGANer
 
 
 warnings.filterwarnings("ignore", category=UserWarning, message="Default grid_sample and affine_grid behavior has changed*")
@@ -47,17 +47,17 @@ auto_mask = True
 DSModel = DeepSpeech(deepspeech_model_path)
 
 #GFPGANv1.4
-GFPGAN_arch = 'clean'
-GFPGAN_channel_multiplier = 2
-GFPGAN_model_name = 'GFPGANv1.4'
-GFPGAN_url = 'https://github.com/TencentARC/GFPGAN/releases/download/v1.3.0/GFPGANv1.4.pth'
-GFPGAN_model_path = os.path.join('experiments/pretrained_models', GFPGAN_model_name + '.pth')
-restorer = GFPGANer(
-        model_path=GFPGAN_model_path,
-        upscale=2,
-        arch=GFPGAN_arch,
-        channel_multiplier=GFPGAN_channel_multiplier,
-        bg_upsampler=None)
+# GFPGAN_arch = 'clean'
+# GFPGAN_channel_multiplier = 2
+# GFPGAN_model_name = 'GFPGANv1.4'
+# GFPGAN_url = 'https://github.com/TencentARC/GFPGAN/releases/download/v1.3.0/GFPGANv1.4.pth'
+# GFPGAN_model_path = os.path.join('experiments/pretrained_models', GFPGAN_model_name + '.pth')
+# restorer = GFPGANer(
+#         model_path=GFPGAN_model_path,
+#         upscale=2,
+#         arch=GFPGAN_arch,
+#         channel_multiplier=GFPGAN_channel_multiplier,
+#         bg_upsampler=None)
 
 
 
@@ -91,25 +91,25 @@ def convert_audio_to_wav(audio_path):
         subprocess.run(command, shell=True, check=True)
     return output_path
 
-def restore_face(img_path):
-    # read image
-    img_name = os.path.basename(img_path)
-    basename, ext = os.path.splitext(img_name)
-    input_img = cv2.imread(img_path, cv2.IMREAD_COLOR)
+# def restore_face(img_path):
+#     # read image
+#     img_name = os.path.basename(img_path)
+#     basename, ext = os.path.splitext(img_name)
+#     input_img = cv2.imread(img_path, cv2.IMREAD_COLOR)
 
-    # restore faces and background if necessary
-    cropped_faces, restored_faces, restored_img = restorer.enhance(
-        input_img,
-        has_aligned=True,
-        only_center_face=True,
-        paste_back=True,
-        weight=0.5)
-    # save restored img
-    if restored_img is not None:
-        extension = ext[1:]
-        # save_restore_path = os.path.join(output, f'{basename}.{extension}')
-        save_restore_path = img_path
-        cv2.imwrite(restored_img, save_restore_path)
+#     # restore faces and background if necessary
+#     cropped_faces, restored_faces, restored_img = restorer.enhance(
+#         input_img,
+#         has_aligned=True,
+#         only_center_face=True,
+#         paste_back=True,
+#         weight=0.5)
+#     # save restored img
+#     if restored_img is not None:
+#         extension = ext[1:]
+#         # save_restore_path = os.path.join(output, f'{basename}.{extension}')
+#         save_restore_path = img_path
+#         cv2.imwrite(restored_img, save_restore_path)
 
 
 
@@ -124,9 +124,9 @@ def extract_frames_from_video(video_path, save_dir):
         result_path = os.path.join(save_dir, str(i).zfill(6) + '.jpg')
         old_frame.append(result_path)
         cv2.imwrite(result_path, frame)
-    for perFrame in tqdm(old_frame, desc="Processing frames"):
-        restore_face(perFrame)
-    print("Face Restored")
+    # for perFrame in tqdm(old_frame, desc="Processing frames"):
+    #     restore_face(perFrame)
+    # print("Face Restored")
     return (int(video_capture.get(cv2.CAP_PROP_FRAME_WIDTH)), int(video_capture.get(cv2.CAP_PROP_FRAME_HEIGHT)))
 
 def load_landmark_dlib(image_path):
@@ -297,12 +297,13 @@ def main_process(source_video_path,driving_audio_path,mouth_region_size,custom_c
         pre_blend_video_path = os.path.join(res_video_dir, 'pre_blend.mp4')
 
         # Call blend.py for blending and masking
-        cmd = [
-            'python', 'utils/blend.py',
-            '--samelength_video_path', samelength_video_path,
-            '--pre_blend_video_path', pre_blend_video_path
-        ]
-        subprocess.call(cmd, shell=True)
+        # cmd = [
+        #     'python', 'utils/blend.py',
+        #     '--samelength_video_path', samelength_video_path,
+        #     '--pre_blend_video_path', pre_blend_video_path
+        # ]
+        # subprocess.call(cmd, shell=True)
+        Processmain(samelength_video_path,pre_blend_video_path)
 
 
 
@@ -329,6 +330,6 @@ def main_process(source_video_path,driving_audio_path,mouth_region_size,custom_c
 
 #     return FileResponse(output_path, media_type='video/mp4', filename="processed_video.mp4")
 video_path = "Nishant_org.mp4"
-audio_path = "A1.wav"
+audio_path = "5min.wav"
 output_path = "inference_result"
 main_process(video_path,audio_path,256,0,output_path)
