@@ -83,7 +83,7 @@ def extract_frames_from_video(video_path, save_dir):
     # for perFrame in tqdm(old_frame, desc="Processing frames for Alpha"):
     #     restore_face(perFrame)
     ctx = torch.multiprocessing.get_context("spawn")
-    pool = ctx.Pool(3)
+    pool = ctx.Pool(7)
     pool.map(restore_face, old_frame)
     return (int(videoCapture.get(cv2.CAP_PROP_FRAME_WIDTH)), int(videoCapture.get(cv2.CAP_PROP_FRAME_HEIGHT)))
 
