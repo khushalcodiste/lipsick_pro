@@ -182,7 +182,8 @@ def main_process(source_video_path,driving_audio_path,mouth_region_size,custom_c
     print('Tracking Face')
     video_frame_path_list = glob.glob(os.path.join(video_frame_dir, '*.jpg'))
     video_frame_path_list.sort()
-    num_workers = cpu_count()
+    num_workers = 5
+    print(num_workers)
     with Pool(num_workers) as pool:
         video_landmark_data = pool.map(process_frame_Tracking_Face, video_frame_path_list)
     
