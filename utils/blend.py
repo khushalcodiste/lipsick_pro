@@ -9,6 +9,7 @@ import subprocess
 import shutil
 from tqdm import tqdm
 from gfpgan import GFPGANer
+import torch
 # Add the parent directory to the Python path explicitly
 parent_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 sys.path.append(parent_dir)
@@ -79,8 +80,11 @@ def extract_frames_from_video(video_path, save_dir):
         result_path = os.path.join(save_dir, str(i).zfill(6) + '.jpg')
         old_frame.append(result_path)
         cv2.imwrite(result_path, frame)
-    for perFrame in tqdm(old_frame, desc="Processing frames for Alpha"):
-        restore_face(perFrame)
+    # for perFrame in tqdm(old_frame, desc="Processing frames for Alpha"):
+    #     restore_face(perFrame)
+    ctx = torch.multiprocessing.get_context("spawn")
+    pool = ctx.Pool(3)
+    pool.map(restore_face, old_frame)
     return (int(videoCapture.get(cv2.CAP_PROP_FRAME_WIDTH)), int(videoCapture.get(cv2.CAP_PROP_FRAME_HEIGHT)))
 
 def load_landmark_dlib(image_path):

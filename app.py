@@ -22,6 +22,7 @@ import glob
 import numpy as np
 import os
 import torch
+from multiprocessing import Pool, cpu_count
 from basicsr.utils import imwrite
 from tqdm import tqdm
 from utils.blend import Processmain
@@ -148,6 +149,14 @@ def parse_reference_indices(indices_str):
         print("Error parsing reference indices.")
     return []
 
+
+def process_frame_Tracking_Face(frame_path):
+    try:
+        return load_landmark_dlib(frame_path)
+    except Exception as e:
+        print(f"Error processing {frame_path}: {e}")
+        return None
+
 def main_process(source_video_path,driving_audio_path,mouth_region_size,custom_crop_radius,res_video_dir):
     # opt = LipSickInferenceOptions().parse_args()
     driving_audio_path = convert_audio_to_wav(driving_audio_path)
@@ -173,7 +182,14 @@ def main_process(source_video_path,driving_audio_path,mouth_region_size,custom_c
     print('Tracking Face')
     video_frame_path_list = glob.glob(os.path.join(video_frame_dir, '*.jpg'))
     video_frame_path_list.sort()
-    video_landmark_data = np.array([load_landmark_dlib(frame) for frame in video_frame_path_list])
+    num_workers = cpu_count()
+    with Pool(num_workers) as pool:
+        video_landmark_data = pool.map(process_frame_Tracking_Face, video_frame_path_list)
+    
+    # Filter out any None results from the multiprocessing
+    video_landmark_data_without_array = [data for data in video_landmark_data if data is not None]
+    video_landmark_data = np.array(video_landmark_data_without_array)
+    # video_landmark_data = np.array([load_landmark_dlib(frame) for frame in video_frame_path_list])
 
     print('Aligning frames with driving audio')
     video_frame_path_list_cycle = video_frame_path_list + video_frame_path_list[::-1]
@@ -330,6 +346,6 @@ def main_process(source_video_path,driving_audio_path,mouth_region_size,custom_c
 
 #     return FileResponse(output_path, media_type='video/mp4', filename="processed_video.mp4")
 video_path = "Nishant_org.mp4"
-audio_path = "5min.wav"
+audio_path = "speech.wav"
 output_path = "inference_result"
 main_process(video_path,audio_path,256,0,output_path)
