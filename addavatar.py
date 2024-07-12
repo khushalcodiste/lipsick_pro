@@ -12,7 +12,7 @@ def create_video_clip_from_frames(frames, fps):
     clip = ImageSequenceClip(frames, fps=fps, load_images=True)
     return clip
 
-def addAvatar(background_vidoe,avatar_path,audio,output):
+def addAvatar(background_vidoe,avatar_path,audio,output,video_id):
 
     # Load the main background video
     background_video = VideoFileClip(background_vidoe)
@@ -44,6 +44,6 @@ def addAvatar(background_vidoe,avatar_path,audio,output):
     final_video = CompositeVideoClip([background_video, explanation_video_clip])
 
     # Write the result to a file;
-    output_path = os.path.join(output,"final_video_test.mp4")
+    output_path = os.path.join(output,f"{video_id}.mp4")
     final_video.write_videofile(output_path, codec="libx264")
     return output_path

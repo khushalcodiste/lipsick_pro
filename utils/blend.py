@@ -8,7 +8,7 @@ import dlib
 import subprocess
 import shutil
 from tqdm import tqdm
-from gfpgan import GFPGANer
+# from gfpgan import GFPGANer
 # Add the parent directory to the Python path explicitly
 parent_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 sys.path.append(parent_dir)
@@ -16,37 +16,37 @@ sys.path.append(parent_dir)
 # Now import from the utils module
 from utils.common import get_versioned_filename
 
-GFPGAN_arch = 'clean'
-GFPGAN_channel_multiplier = 2
-GFPGAN_model_name = 'GFPGANv1.4'
-GFPGAN_url = 'https://github.com/TencentARC/GFPGAN/releases/download/v1.3.0/GFPGANv1.4.pth'
-GFPGAN_model_path = os.path.join('experiments/pretrained_models', GFPGAN_model_name + '.pth')
-restorer = GFPGANer(
-        model_path=GFPGAN_model_path,
-        upscale=2,
-        arch=GFPGAN_arch,
-        channel_multiplier=GFPGAN_channel_multiplier,
-        bg_upsampler=None)
+# GFPGAN_arch = 'clean'
+# GFPGAN_channel_multiplier = 2
+# GFPGAN_model_name = 'GFPGANv1.4'
+# GFPGAN_url = 'https://github.com/TencentARC/GFPGAN/releases/download/v1.3.0/GFPGANv1.4.pth'
+# GFPGAN_model_path = os.path.join('experiments/pretrained_models', GFPGAN_model_name + '.pth')
+# restorer = GFPGANer(
+#         model_path=GFPGAN_model_path,
+#         upscale=2,
+#         arch=GFPGAN_arch,
+#         channel_multiplier=GFPGAN_channel_multiplier,
+#         bg_upsampler=None)
 
 face_detector = dlib.get_frontal_face_detector()
 landmark_predictor = dlib.shape_predictor("./models/shape_predictor_68_face_landmarks.dat")
 
 
-def restore_face(img_path):
-    # read image
-    # print(img_path)
-    input_img = cv2.imread(img_path, cv2.IMREAD_COLOR)
+# def restore_face(img_path):
+#     # read image
+#     # print(img_path)
+#     input_img = cv2.imread(img_path, cv2.IMREAD_COLOR)
 
-    # restore faces and background if necessary
-    cropped_faces, restored_faces, restored_img = restorer.enhance(
-        input_img,
-        has_aligned=True,
-        only_center_face=True,
-        paste_back=True,
-        weight=0.5)
-    # save restored img
-    if restored_img is not None:
-        cv2.imwrite(img_path,restored_img)
+#     # restore faces and background if necessary
+#     cropped_faces, restored_faces, restored_img = restorer.enhance(
+#         input_img,
+#         has_aligned=True,
+#         only_center_face=True,
+#         paste_back=True,
+#         weight=0.5)
+#     # save restored img
+#     if restored_img is not None:
+#         cv2.imwrite(img_path,restored_img)
 
 def Processmain(samelength_path, pre_blend_path):
     # Extract frames from the samelength video
@@ -80,8 +80,8 @@ def extract_frames_from_video(video_path, save_dir):
         result_path = os.path.join(save_dir, str(i).zfill(6) + '.jpg')
         old_frame.append(result_path)
         cv2.imwrite(result_path, frame)
-    for perFrame in tqdm(old_frame, desc="Processing frames for Alpha"):
-        restore_face(perFrame)
+    # for perFrame in tqdm(old_frame, desc="Processing frames for Alpha"):
+    #     restore_face(perFrame)
     return (int(videoCapture.get(cv2.CAP_PROP_FRAME_WIDTH)), int(videoCapture.get(cv2.CAP_PROP_FRAME_HEIGHT)))
 
 def load_landmark_dlib(image_path):

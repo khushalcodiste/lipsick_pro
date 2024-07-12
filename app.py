@@ -1,5 +1,5 @@
-from fastapi import FastAPI, File, UploadFile
-from fastapi.responses import FileResponse
+# from fastapi import FastAPI, File, UploadFile
+# from fastapi.responses import FileResponse
 import shutil
 import os
 import uuid
@@ -28,7 +28,7 @@ from multiprocessing import Pool, cpu_count
 from basicsr.utils import imwrite
 from tqdm import tqdm
 from utils.blend import Processmain
-import threading
+# import threading
 from elevenlabs import VoiceSettings
 from elevenlabs.client import ElevenLabs
 from pydub import AudioSegment
@@ -94,7 +94,15 @@ ELEVENLABS_client = ElevenLabs(
 )
 
 
-app = FastAPI()
+# app = FastAPI()
+
+
+def __init__():
+    dirs = ["temp", "temp/tempaudio", "temp/tempFrame", "temp/tempvideos","temp/finaloutput"]
+    for dir in dirs:
+        os.makedirs(dir, exist_ok=True)
+
+
 
 def upload_file_to_s3(file_name, bucket=os.getenv('S3_BUCKET_NAME'), object_name=None):
     # If S3 object_name was not specified, use file_name
@@ -176,23 +184,31 @@ def extract_frames_from_video(video_path, save_dir):
     return (int(video_capture.get(cv2.CAP_PROP_FRAME_WIDTH)), int(video_capture.get(cv2.CAP_PROP_FRAME_HEIGHT)))
 
 def load_landmark_dlib(image_path):
-    print("huh")
     img = cv2.imread(image_path)
     gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-    print("huh 2")
-
     faces = face_detector(gray)
-    print("huh 3")
-    
     if not faces:
         raise ValueError("No faces found in the image.")
-    print("huh 4")
-    
     shape = landmark_predictor(gray, faces[0])
-    print("huh 5")
-    
-    landmarks = np.array([[p.x, p.y] for p in shape.parts()])
-    print("huh 6")
+
+        # Create an empty list to store the coordinates.
+    coordinates = []
+    # Loop through each point in the shape's parts.
+    for p in shape.parts():
+        try:
+
+            # Extract the x and y coordinates of the point.
+            x = p.x
+            y = p.y
+            # Append the coordinates as a list to the coordinates list.
+            coordinates.append([x, y])
+        except:
+            pass
+
+
+
+    # Convert the list of coordinates to a NumPy array.
+    landmarks = np.array(coordinates)
     
     return landmarks
 
@@ -213,7 +229,7 @@ def main_process(source_video_path,driving_audio_path,mouth_region_size,custom_c
 
     video_id = res_video_dir
     # Ensure the res_video_dir is defined before using it
-    res_video_dir = os.path.join("tempvideos",video_id)
+    res_video_dir = os.path.join("temp","tempvideos",video_id)
     
     if not os.path.exists(source_video_path):
         raise Exception(f'Wrong video path: {source_video_path}')
@@ -361,78 +377,81 @@ def main_process(source_video_path,driving_audio_path,mouth_region_size,custom_c
         samelength_video_path = os.path.join(res_video_dir, 'samelength.mp4')
         pre_blend_video_path = os.path.join(res_video_dir, 'pre_blend.mp4')
         videoOutput = Processmain(samelength_video_path,pre_blend_video_path)
-    FramePath = os.path.join("tempFrame",video_id)
+    FramePath = os.path.join("temp","tempFrame",video_id)
     if not os.path.exists(FramePath):
         os.makedirs(FramePath)
+    print("\nBackground removing started")
     RemoveFramemain(videoOutput,FramePath)
-    video_result = addAvatar(slidevideo,FramePath,driving_audio_path,"tempFrame")
+    print("\nBackground removing ended")
+
+    video_result = addAvatar(slidevideo,FramePath,driving_audio_path,os.path.join("temp","finaloutput"),video_id)
     Status_db[video_id] = {"status":"success"}
     shutil.rmtree(res_video_dir)
 
-@app.get("/status/{video_id}")
-async def status_vidoe(video_id: str):
-    result = Status_db[video_id]
-    if result['status'] == 'Processing':
-        return result
-    else:
-        return result
+# @app.get("/status/{video_id}")
+# async def status_vidoe(video_id: str):
+#     result = Status_db[video_id]
+#     if result['status'] == 'Processing':
+#         return result
+#     else:
+#         return result
 
 
 
 
 
-@app.post("/audio")
-async def generate_audio(audio_text: str,audio_id: str,audio_url: str):
-    response = ELEVENLABS_client.text_to_speech.convert(
-        voice_id="pNInz6obpgDQGcFmaJgB", # Adam pre-made voice
-        optimize_streaming_latency="0",
-        output_format="mp3_22050_32",
-        text=audio_text,
-        model_id="eleven_turbo_v2", # use the turbo model for low latency, for other languages use the `eleven_multilingual_v2`
-        voice_settings=VoiceSettings(
-            stability=0.0,
-            similarity_boost=1.0,
-            style=0.0,
-            use_speaker_boost=True,
-        ),
-    )
-    save_file_path = os.path.join("tempaudio",audio_id)
-    if not os.path.exists(save_file_path):
-        os.makedirs(save_file_path)
-    with open(os.path.join(save_file_path,'file.wav'), "wb") as f:
-        for chunk in response:
-            if chunk:
-                f.write(chunk)
-    audio = AudioSegment.from_file(os.path.join(save_file_path,'file.wav'))  # Replace with the actual path to your file
-    # Get the duration in milliseconds
-    duration_ms = len(audio)
+# @app.post("/audio")
+# async def generate_audio(audio_text: str,audio_id: str,audio_url: str):
+#     response = ELEVENLABS_client.text_to_speech.convert(
+#         voice_id="pNInz6obpgDQGcFmaJgB", # Adam pre-made voice
+#         optimize_streaming_latency="0",
+#         output_format="mp3_22050_32",
+#         text=audio_text,
+#         model_id="eleven_turbo_v2", # use the turbo model for low latency, for other languages use the `eleven_multilingual_v2`
+#         voice_settings=VoiceSettings(
+#             stability=0.0,
+#             similarity_boost=1.0,
+#             style=0.0,
+#             use_speaker_boost=True,
+#         ),
+#     )
+#     save_file_path = os.path.join("tempaudio",audio_id)
+#     if not os.path.exists(save_file_path):
+#         os.makedirs(save_file_path)
+#     with open(os.path.join(save_file_path,'file.wav'), "wb") as f:
+#         for chunk in response:
+#             if chunk:
+#                 f.write(chunk)
+#     audio = AudioSegment.from_file(os.path.join(save_file_path,'file.wav'))  # Replace with the actual path to your file
+#     # Get the duration in milliseconds
+#     duration_ms = len(audio)
 
-    # Convert to seconds
-    duration_seconds = duration_ms / 1000.0
-    url = upload_file_to_s3(os.path.join(save_file_path,'file.wav'))
-    return {"url":url,"time":  duration_seconds,"audio_id":audio_id}
+#     # Convert to seconds
+#     duration_seconds = duration_ms / 1000.0
+#     url = upload_file_to_s3(os.path.join(save_file_path,'file.wav'))
+#     return {"url":url,"time":  duration_seconds,"audio_id":audio_id}
     
 
-@app.post("/merge")
-async def process_merge():
-    pass
+# @app.post("/merge")
+# async def process_merge():
+#     pass
 
-@app.post("/process/")
-async def process_video(slidevideo: UploadFile = File(...), video: UploadFile = File(...), audio: UploadFile = File(...)):
-    video_path = f"temp_{video.filename}"
-    audio_path = f"temp_{audio.filename}"
+# @app.post("/process/")
+# async def process_video(slidevideo: UploadFile = File(...), video: UploadFile = File(...), audio: UploadFile = File(...)):
+#     video_path = f"temp_{video.filename}"
+#     audio_path = f"temp_{audio.filename}"
 
-    # Save the uploaded files
-    with open(video_path, "wb") as buffer:
-        shutil.copyfileobj(video.file, buffer)
+#     # Save the uploaded files
+#     with open(video_path, "wb") as buffer:
+#         shutil.copyfileobj(video.file, buffer)
 
-    with open(audio_path, "wb") as buffer:
-        shutil.copyfileobj(audio.file, buffer)
-    video_id = str(uuid.uuid4()) + "-" + strftime("%Y-%m-%d-%H-%M-%S", gmtime())
-    thread = threading.Thread(target=main_process, args=(video_path, audio_path,256,0,video_id,slidevideo))
-    Status_db['video_id'] = {"status":"Processing"}
+#     with open(audio_path, "wb") as buffer:
+#         shutil.copyfileobj(audio.file, buffer)
+#     video_id = str(uuid.uuid4()) + "-" + strftime("%Y-%m-%d-%H-%M-%S", gmtime())
+#     thread = threading.Thread(target=main_process, args=(video_path, audio_path,256,0,video_id,slidevideo))
+#     Status_db['video_id'] = {"status":"Processing"}
     
-    thread.start()
+#     thread.start()
     # output = main_process(video_path,audio_path,256,0,video_id)
 
     # Clean up temporary files
@@ -442,7 +461,7 @@ async def process_video(slidevideo: UploadFile = File(...), video: UploadFile = 
     return {"video_id": video_id}
 
 slidevideo = "background.mp4"
-video_path = "Nishant_org.mp4"
+video_path = "temp_Nishant_org.mp4"
 audio_path = "speech.wav"
-output_path = "5847965"
+output_path = "52"
 main_process(video_path,audio_path,256,0,output_path,slidevideo)

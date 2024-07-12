@@ -64,6 +64,11 @@ pip install realesrgan resampy fastapi uvicorn python_speech_features facexlib b
 wget -P "/content/lipsick_pro/experiments/pretrained_models" https://github.com/TencentARC/GFPGAN/releases/download/v1.3.0/GFPGANv1.4.pth
 
 cd ..
+
+pip install --force-reinstall charset-normalizer==3.1.0
+pip install onnxruntime-gpu
+
+
 ```
 
 
