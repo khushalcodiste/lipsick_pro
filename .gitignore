@@ -24,3 +24,6 @@ inference_result/
 Nishant_org
 background.mp4
 temp_video.mp4
+asserts/old_pretrained_lipsick.pth
+.env
+s3test.py

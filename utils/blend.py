@@ -9,7 +9,6 @@ import subprocess
 import shutil
 from tqdm import tqdm
 from gfpgan import GFPGANer
-import torch
 # Add the parent directory to the Python path explicitly
 parent_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 sys.path.append(parent_dir)
@@ -67,7 +66,8 @@ def Processmain(samelength_path, pre_blend_path):
     print('Tracking Face of Lip-synced (LipSick) video please wait..')
 
     # Call the blending function
-    blend_videos(same_length_dir, pre_blend_dir, samelength_path, pre_blend_path)
+    outputpath = blend_videos(same_length_dir, pre_blend_dir, samelength_path, pre_blend_path)
+    return outputpath
 
 def extract_frames_from_video(video_path, save_dir):
     videoCapture = cv2.VideoCapture(video_path)
@@ -80,11 +80,8 @@ def extract_frames_from_video(video_path, save_dir):
         result_path = os.path.join(save_dir, str(i).zfill(6) + '.jpg')
         old_frame.append(result_path)
         cv2.imwrite(result_path, frame)
-    # for perFrame in tqdm(old_frame, desc="Processing frames for Alpha"):
-    #     restore_face(perFrame)
-    ctx = torch.multiprocessing.get_context("spawn")
-    pool = ctx.Pool(7)
-    pool.map(restore_face, old_frame)
+    for perFrame in tqdm(old_frame, desc="Processing frames for Alpha"):
+        restore_face(perFrame)
     return (int(videoCapture.get(cv2.CAP_PROP_FRAME_WIDTH)), int(videoCapture.get(cv2.CAP_PROP_FRAME_HEIGHT)))
 
 def load_landmark_dlib(image_path):
@@ -159,6 +156,7 @@ def blend_videos(same_length_dir, pre_blend_dir, samelength_path, pre_blend_path
     os.remove(pre_blend_path)
     shutil.rmtree(same_length_dir)
     shutil.rmtree(pre_blend_dir)
+    return final_video_path
 
 # if __name__ == '__main__':
 #     parser = argparse.ArgumentParser(description='Alpha blend two videos based on facial landmarks')

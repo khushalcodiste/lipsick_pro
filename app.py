@@ -1,7 +1,8 @@
-# from fastapi import FastAPI, File, UploadFile
-# from fastapi.responses import FileResponse
+from fastapi import FastAPI, File, UploadFile
+from fastapi.responses import FileResponse
 import shutil
 import os
+import uuid
 from basicsr.utils.download_util import save_response_content
 import numpy as np
 import glob
@@ -13,6 +14,7 @@ import subprocess
 import random
 from collections import OrderedDict
 import dlib
+from time import gmtime, strftime
 import shutil
 import warnings
 import tensorflow as tf
@@ -26,6 +28,16 @@ from multiprocessing import Pool, cpu_count
 from basicsr.utils import imwrite
 from tqdm import tqdm
 from utils.blend import Processmain
+import threading
+from elevenlabs import VoiceSettings
+from elevenlabs.client import ElevenLabs
+from pydub import AudioSegment
+from removebg import RemoveFramemain
+from addavatar import addAvatar
+
+import boto3
+from botocore.exceptions import NoCredentialsError
+
 # from gfpgan import GFPGANer
 
 
@@ -34,7 +46,6 @@ os.environ['TF_CPP_MIN_LOG_LEVEL'] = '1'
 
 from utils.deep_speech import DeepSpeech
 from utils.data_processing import compute_crop_radius
-from config.config import LipSickInferenceOptions
 from models.LipSick import LipSick  # Import the LipSick model
 
 
@@ -73,9 +84,43 @@ for k, v in state_dict.items():
 model.load_state_dict(new_state_dict)
 model.eval()
 
+Status_db = {}
 
 
-# app = FastAPI()
+
+ELEVENLABS_API_KEY = os.getenv("ELEVENLABS_API_KEY")
+ELEVENLABS_client = ElevenLabs(
+    api_key=ELEVENLABS_API_KEY,
+)
+
+
+app = FastAPI()
+
+def upload_file_to_s3(file_name, bucket=os.getenv('S3_BUCKET_NAME'), object_name=None):
+    # If S3 object_name was not specified, use file_name
+    if object_name is None:
+        object_name = file_name
+
+    # Upload the file
+        # Upload the file
+    s3_client = boto3.client('s3', 
+                             aws_access_key_id=os.getenv("AWS_ACCESS_KEY"),
+                             aws_secret_access_key=os.getenv('AWS_SECRET_ACCESS_KEY'))
+    try:
+        s3_client.upload_file(file_name, bucket, object_name)
+    except NoCredentialsError:
+        print("Credentials not available")
+        return None
+
+    # Generate a presigned URL for the S3 object
+    url = s3_client.generate_presigned_url('get_object',
+                                           Params={'Bucket': bucket,
+                                                   'Key': object_name},
+                                           ExpiresIn=3600)
+    return url
+
+
+
 
 def get_versioned_filename(filepath):
     base, ext = os.path.splitext(filepath)
@@ -131,13 +176,24 @@ def extract_frames_from_video(video_path, save_dir):
     return (int(video_capture.get(cv2.CAP_PROP_FRAME_WIDTH)), int(video_capture.get(cv2.CAP_PROP_FRAME_HEIGHT)))
 
 def load_landmark_dlib(image_path):
+    print("huh")
     img = cv2.imread(image_path)
     gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+    print("huh 2")
+
     faces = face_detector(gray)
+    print("huh 3")
+    
     if not faces:
         raise ValueError("No faces found in the image.")
+    print("huh 4")
+    
     shape = landmark_predictor(gray, faces[0])
+    print("huh 5")
+    
     landmarks = np.array([[p.x, p.y] for p in shape.parts()])
+    print("huh 6")
+    
     return landmarks
 
 def parse_reference_indices(indices_str):
@@ -149,12 +205,15 @@ def parse_reference_indices(indices_str):
         print("Error parsing reference indices.")
     return []
 
-def main_process(source_video_path,driving_audio_path,mouth_region_size,custom_crop_radius,res_video_dir):
+def main_process(source_video_path,driving_audio_path,mouth_region_size,custom_crop_radius,res_video_dir,slidevideo):
     # opt = LipSickInferenceOptions().parse_args()
     driving_audio_path = convert_audio_to_wav(driving_audio_path)
+    driving_audio_path_base = os.path.basename(source_video_path)
+    driving_audio_path_base = driving_audio_path_base.split('.')[0]
 
+    video_id = res_video_dir
     # Ensure the res_video_dir is defined before using it
-    res_video_dir = res_video_dir
+    res_video_dir = os.path.join("tempvideos",video_id)
     
     if not os.path.exists(source_video_path):
         raise Exception(f'Wrong video path: {source_video_path}')
@@ -163,17 +222,22 @@ def main_process(source_video_path,driving_audio_path,mouth_region_size,custom_c
     
     print('Extracting frames from video')
     video_frame_dir = source_video_path.replace('.mp4', '')
+    video_frame_dir = os.path.join(res_video_dir,video_frame_dir)
     if not os.path.exists(video_frame_dir):
-        os.mkdir(video_frame_dir)
+        os.makedirs(video_frame_dir)
     video_size = extract_frames_from_video(source_video_path, video_frame_dir)
-
+    
     ds_feature = DSModel.compute_audio_feature(driving_audio_path)
+    print('Extracting frames from video is about to complate')
+
     res_frame_length = ds_feature.shape[0]
     ds_feature_padding = np.pad(ds_feature, ((2, 2), (0, 0)), mode='edge')
 
     print('Tracking Face')
     video_frame_path_list = glob.glob(os.path.join(video_frame_dir, '*.jpg'))
+
     video_frame_path_list.sort()
+
     video_landmark_data = np.array([load_landmark_dlib(frame) for frame in video_frame_path_list])
 
     print('Aligning frames with driving audio')
@@ -296,41 +360,89 @@ def main_process(source_video_path,driving_audio_path,mouth_region_size,custom_c
         print('Auto Mask stage')
         samelength_video_path = os.path.join(res_video_dir, 'samelength.mp4')
         pre_blend_video_path = os.path.join(res_video_dir, 'pre_blend.mp4')
+        videoOutput = Processmain(samelength_video_path,pre_blend_video_path)
+    FramePath = os.path.join("tempFrame",video_id)
+    if not os.path.exists(FramePath):
+        os.makedirs(FramePath)
+    RemoveFramemain(videoOutput,FramePath)
+    video_result = addAvatar(slidevideo,FramePath,driving_audio_path,"tempFrame")
+    Status_db[video_id] = {"status":"success"}
+    shutil.rmtree(res_video_dir)
 
-        # Call blend.py for blending and masking
-        # cmd = [
-        #     'python', 'utils/blend.py',
-        #     '--samelength_video_path', samelength_video_path,
-        #     '--pre_blend_video_path', pre_blend_video_path
-        # ]
-        # subprocess.call(cmd, shell=True)
-        Processmain(samelength_video_path,pre_blend_video_path)
-
-
-
-
-# @app.post("/process/")
-# async def process_video(video: UploadFile = File(...), audio: UploadFile = File(...)):
-#     video_path = f"temp_{video.filename}"
-#     audio_path = f"temp_{audio.filename}"
-#     output_path = "output.mp4"
-
-#     # Save the uploaded files
-#     with open(video_path, "wb") as buffer:
-#         shutil.copyfileobj(video.file, buffer)
-
-#     with open(audio_path, "wb") as buffer:
-#         shutil.copyfileobj(audio.file, buffer)
-
-#     output = main_process(video_path,audio_path,256,0,output_path)
+@app.get("/status/{video_id}")
+async def status_vidoe(video_id: str):
+    result = Status_db[video_id]
+    if result['status'] == 'Processing':
+        return result
+    else:
+        return result
 
 
-#     # Clean up temporary files
-#     # os.remove(video_path)
-#     # os.remove(audio_path)
 
-#     return FileResponse(output_path, media_type='video/mp4', filename="processed_video.mp4")
+
+
+@app.post("/audio")
+async def generate_audio(audio_text: str,audio_id: str,audio_url: str):
+    response = ELEVENLABS_client.text_to_speech.convert(
+        voice_id="pNInz6obpgDQGcFmaJgB", # Adam pre-made voice
+        optimize_streaming_latency="0",
+        output_format="mp3_22050_32",
+        text=audio_text,
+        model_id="eleven_turbo_v2", # use the turbo model for low latency, for other languages use the `eleven_multilingual_v2`
+        voice_settings=VoiceSettings(
+            stability=0.0,
+            similarity_boost=1.0,
+            style=0.0,
+            use_speaker_boost=True,
+        ),
+    )
+    save_file_path = os.path.join("tempaudio",audio_id)
+    if not os.path.exists(save_file_path):
+        os.makedirs(save_file_path)
+    with open(os.path.join(save_file_path,'file.wav'), "wb") as f:
+        for chunk in response:
+            if chunk:
+                f.write(chunk)
+    audio = AudioSegment.from_file(os.path.join(save_file_path,'file.wav'))  # Replace with the actual path to your file
+    # Get the duration in milliseconds
+    duration_ms = len(audio)
+
+    # Convert to seconds
+    duration_seconds = duration_ms / 1000.0
+    url = upload_file_to_s3(os.path.join(save_file_path,'file.wav'))
+    return {"url":url,"time":  duration_seconds,"audio_id":audio_id}
+    
+
+@app.post("/merge")
+async def process_merge():
+    pass
+
+@app.post("/process/")
+async def process_video(slidevideo: UploadFile = File(...), video: UploadFile = File(...), audio: UploadFile = File(...)):
+    video_path = f"temp_{video.filename}"
+    audio_path = f"temp_{audio.filename}"
+
+    # Save the uploaded files
+    with open(video_path, "wb") as buffer:
+        shutil.copyfileobj(video.file, buffer)
+
+    with open(audio_path, "wb") as buffer:
+        shutil.copyfileobj(audio.file, buffer)
+    video_id = str(uuid.uuid4()) + "-" + strftime("%Y-%m-%d-%H-%M-%S", gmtime())
+    thread = threading.Thread(target=main_process, args=(video_path, audio_path,256,0,video_id,slidevideo))
+    Status_db['video_id'] = {"status":"Processing"}
+    
+    thread.start()
+    # output = main_process(video_path,audio_path,256,0,video_id)
+
+    # Clean up temporary files
+    # os.remove(video_path)
+    # os.remove(audio_path)
+
+    return {"video_id": video_id}
+
+slidevideo = "background.mp4"
 video_path = "Nishant_org.mp4"
 audio_path = "speech.wav"
-output_path = "inference_result"
-main_process(video_path,audio_path,256,0,output_path)
+output_path = "5847965"
+main_process(video_path,audio_path,256,0,output_path,slidevideo)

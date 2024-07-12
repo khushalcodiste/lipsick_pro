@@ -1,4 +1,5 @@
-file_path = "/mnt/c/Users/ADMIN/Khushal/lipsick/venv/lib/python3.10/site-packages/basicsr/data/degradations.py"
+# file_path = "/mnt/c/Users/ADMIN/Khushal/lipsick/venv/lib/python3.10/site-packages/basicsr/data/degradations.py"
+file_path = "/home/khushal/miniconda3/envs/lipsick/lib/python3.10/site-packages/basicsr/data/degradations.py"
 replacement_line = 'from torchvision.transforms.functional import rgb_to_grayscale\n'
 
 # Read the content of the file

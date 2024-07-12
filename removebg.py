@@ -103,14 +103,16 @@ def process_frame(input_path):
     input_path = input_path.split(".")
     output.save(input_path[0] + '.png')
 
-def main() -> None:
+def RemoveFramemain(video_path,save_dir):
     """Run main function."""
-    video_path = "inference_result\\LipSick_Blend_old.mp4"
-    save_dir = "inference_result\\tempunet"
+    # video_path = "tempvideos\\4b7b2bc9-d610-49af-b003-152c6c919fd1-2024-07-11-07-33-51\\temp_Nishant_org\\LipSick_Blend.mp4"
+    # save_dir = "tempFrame\\test"
     samples = extract_frames_from_video(video_path, save_dir)
     
-    with Pool(cpu_count()) as p:
+    with Pool(2) as p:
         list(tqdm(p.imap(process_frame, samples), total=len(samples)))
 
-if __name__ == "__main__":
-    main()
+
+
+# if __name__ == "__main__":
+#     RemoveFramemain()
